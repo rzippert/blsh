@@ -1,10 +1,13 @@
 #!/bin/bash
 
+
 QUERY_TIMEOUT=10
 TMP_RESULT="/tmp/query2.tmp"
-SQLITE_DB="dnsbl2.sqlite"
-DNS_LIST="dnsok"
-BL_LIST="dnsbl"
+SQLITE_DB="dbs/$( date +%Y%m%d )-dnsbl.sqlite"
+DNS_LIST="lists/dnsmt4"
+BL_LIST="lists/dns/dnsbl"
+HOST_LIST="lists/dns/hostlist"
+LOG_FILE="logs/$( date +%Y%m%d )-dnsblcheck.log"
 
 sqlitestore () {
 	echo "INSERT INTO queries VALUES (\"$1\",\"$2\",\"$3\",\"$4\",\"$5\");" | sqlite3 $SQLITE_DB
@@ -13,7 +16,7 @@ sqlitestore () {
 querydns () {
 	for dns in $( cat $DNS_LIST )
 	do
-		echo "[$( date )] Querying $bl with $dns" | tee -a dnsblcheck.log
+		echo "[$( date )] Querying $bl with $dns" | tee -a "$LOG_FILE" 
 		dig +time=$QUERY_TIMEOUT +short @$dns $1.$2 > $TMP_RESULT
 		if [[ $? -eq 0 ]]
 		then
@@ -32,11 +35,19 @@ querydns () {
 	done
 }
 
-for bl in $( cat $BL_LIST )
-do
-	querydns "TEST" "$bl"
-	querydns "INVALID" "$bl"
-	wait
-done
+main () {
+	for bl in $( cat $BL_LIST )
+	do
+		for dnshost in $( cat $HOST_LIST )
+		do
+			querydns "$dnshost" "$bl"
+			wait
+		done
+	done
+}
+
+cp dnsbl.sqlite.empty "$SQLITE_DB"
+
+main
 
 exit 0
