@@ -50,4 +50,5 @@ cp dnsbl.sqlite.empty "$SQLITE_DB"
 
 main
 
+#echo "SELECT * FROM queries WHERE answer != \"\";" | sqlite3 -column -header $SQLITE_DB
 exit 0
