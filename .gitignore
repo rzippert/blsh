@@ -10,8 +10,6 @@
 # telsend
 telsend.sh
 
-result.html
-
 dbs/*
 logs/*
 lists/*
