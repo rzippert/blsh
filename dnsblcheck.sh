@@ -3,17 +3,17 @@
 QUERY_TIMEOUT=10
 TMP_RESULT="/tmp/querydns.tmp"
 TMP_REPORT="/tmp/reportdns.tmp"
-SQLITE_DB="dbs/$( date +%Y%m%d )-dnsbl.sqlite"
-DNS_LIST="lists/dnsmt4"
-BL_LIST="lists/dns/dnsbl"
-HOST_LIST="lists/dns/hostlist"
-LOG_FILE="logs/$( date +%Y%m%d )-dnsblcheck.log"
+SQLITE_DB="/home/rrzippert/Dev/blcheck/dbs/$( date +%Y%m%d )-dnsbl.sqlite"
+DNS_LIST="/home/rrzippert/Dev/blcheck/lists/dnslist"
+BL_LIST="/home/rrzippert/Dev/blcheck/lists/dns/dnsbl"
+HOST_LIST="/home/rrzippert/Dev/blcheck/lists/dns/hostlist"
+LOG_FILE="/home/rrzippert/Dev/blcheck/logs/$( date +%Y%m%d )-dnsblcheck.log"
 
 sqlitereport () {
 	echo -n "Verificação de blacklists (domínios) concluída com sucesso. " > $TMP_REPORT
 
 	# Busca por listagens positivas
-	echo "SELECT host,bl,answer,txt FROM queries WHERE answer != \"\";" | sqlite3 -line $SQLITE_DB > $TMP_RESULT
+	echo "SELECT host,bl,answer,txt FROM queries WHERE answer != \"\" AND answer != \"NULL\";" | sqlite3 -line $SQLITE_DB > $TMP_RESULT
 	if [[ -z $( cat $TMP_RESULT ) ]]
 	then
 		# Caso nenhuma listagem positiva seja encontrada:
@@ -23,10 +23,11 @@ sqlitereport () {
 		echo "Foram encontradas as seguintes listagens em blacklists:" >> $TMP_REPORT
 		echo "" >> $TMP_REPORT
 		cat $TMP_RESULT >> $TMP_REPORT
+		/usr/local/bin/telsend "$( cat $TMP_REPORT )"
 	fi
 
 	# Envio do relatório via telegram
-	./telsend.sh "$( cat $TMP_REPORT )"
+	#/usr/local/bin/telsend "$( cat $TMP_REPORT )"
 }
 
 sqlitestore () {
@@ -50,7 +51,7 @@ querydns () {
 			else
 				RESULT="$(cat $TMP_RESULT)"
 			fi
-			if [[ "$RESULT" -ne "" ]]
+			if [[ "$RESULT" != "" ]]
 			then
 				# Caso a blacklist reporte uma entrada, é solicitada a entrada TXT correspondente
 				sqlitestore "$1" "$dns" "$2" "$RESULT" "$(date +%s)" "$( dig TXT +time=$QUERY_TIMEOUT +short @$dns $1.$2 | sed s/\"//g )"
@@ -81,6 +82,7 @@ main () {
 	sqlitereport
 }
 
+cd /home/rrzippert/Dev/blcheck
 main
 
 exit 0

@@ -4,16 +4,16 @@ QUERY_TIMEOUT=10
 TMP_RESULT="/tmp/query.tmp"
 TMP_REPORT="/tmp/reportipv4.tmp"
 SQLITE_DB="dbs/$( date +%Y%m%d )-ipv4bl.sqlite"
-DNS_LIST="lists/dnsmt4"
+DNS_LIST="lists/dnslist"
 BL_LIST="lists/ipv4/ipv4bl"
-IP_LIST="lists/ipv4/ipv4list"
+IP_LIST="lists/ipv4/invertedipv4list"
 LOG_FILE="logs/$( date +%Y%m%d )-ipblcheck.log"
 
 sqlitereport () {
 	echo -n "Verificação de blacklists (ipv4) concluída com sucesso. " > $TMP_REPORT
 
 	# Busca por listagens positivas
-	echo "SELECT host,bl,answer,txt FROM queries WHERE answer != \"\";" | sqlite3 -line $SQLITE_DB > $TMP_RESULT
+	echo "SELECT host,bl,answer,txt FROM queries WHERE answer != \"\" AND answer != \"NULL\";" | sqlite3 -line $SQLITE_DB > $TMP_RESULT
 	if [[ -z $( cat $TMP_RESULT ) ]]
 	then
 		# Caso nenhuma listagem positiva seja encontrada:
@@ -23,10 +23,11 @@ sqlitereport () {
 		echo "Foram encontradas as seguintes listagens em blacklists:" >> $TMP_REPORT
 		echo "" >> $TMP_REPORT
 		cat $TMP_RESULT >> $TMP_REPORT
+		/usr/local/bin/telsend "$( cat $TMP_REPORT )"
 	fi
 
 	# Envio do relatório via telegram
-	./telsend.sh "$( cat $TMP_REPORT )"
+	#/usr/local/bin/telsend "$( cat $TMP_REPORT )"
 }
 
 sqlitestore () {
@@ -83,6 +84,7 @@ main () {
 	sqlitereport
 }
 
+cd /home/rrzippert/Dev/blcheck
 main
 
 exit 0
