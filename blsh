@@ -141,23 +141,210 @@ querystore () {
 }
 
 resultstore () {
+	HOST="$1"
+	# Argument $5 means address type and is assumed DNS by default
+
 	# Store with sqlite the result consensus, but only when there are changes
 	# Columns: host,bl,time,result
-	echo "INSERT INTO results VALUES (\"$1\",\"$2\",\"$3\",\"$4\");" | sqlite3 $SQLITE_DB
+	echo "INSERT INTO results VALUES (\"$HOST\",\"$2\",\"$3\",\"$4\");" | sqlite3 $SQLITE_DB
 
 	# Try to make a pretty report for when listing changes are detected
-	local LISTEDTIME="$(echo "$(echo "SELECT time FROM queries WHERE host LIKE \"$1\" AND bl LIKE \"$2\" ORDER BY time DESC LIMIT 2;" | sqlite3 -csv -noheader $SQLITE_DB)" | tail -n1)"
+	local LISTEDTIME="$(echo "$(echo "SELECT time FROM queries WHERE host LIKE \"$HOST\" AND bl LIKE \"$2\" ORDER BY time DESC LIMIT 2;" | sqlite3 -csv -noheader $SQLITE_DB)" | tail -n1)"
 	if [[ "$4" -gt 0 ]]
 	then
+		if [[ "$5" == "ipv4" ]]
+		then
+			INVHOST="$(echo "$HOST" | sed 's/\(.*\)\.\(.*\)\.\(.*\)\.\(.*\)/\4.\3.\2.\1/')"
+		elif [[ "$5" == "ipv6" ]]
+		then
+			INVHOST="$(echo "$HOST" | sed 's/\(.*\):\(.*\):\(.*\):\(.*\):\(.*\):\(.*\):\(.*\):\(.*\)/\8:\7:\6:\5:\4:\3:\2:\1/')"
+		fi
 		#TODO add some color to this (does Telegram support it somehow?)
-		echo "[$( date )] Host $1 listed on $2. Listing sum is now $4." >> $TMP_RESULT
+		echo "[$( date )] Host $HOST listed on $2. Listing sum is now $4." >> $TMP_RESULT
 		echo "[$( date )] You may verify with the following commands:" >> $TMP_RESULT
-		echo "dig +short $1.$2; dig TXT +short $1.$2" >> $TMP_RESULT
-		echo "echo \"SELECT * FROM queries WHERE host LIKE \\\"$1\\\" AND bl LIKE \\\"$2\\\" ORDER BY time DESC LIMIT $REPORTHISTORYSIZE;\\\" | sqlite3 -line $SQLITE_DB" >> $TMP_RESULT
+		echo "dig +short $INVHOST.$2; dig TXT +short $INVHOST.$2" >> $TMP_RESULT
+		echo "echo \"SELECT * FROM queries WHERE host LIKE \\\"$HOST\\\" AND bl LIKE \\\"$2\\\" ORDER BY time DESC LIMIT $REPORTHISTORYSIZE;\\\" | sqlite3 -line $SQLITE_DB" >> $TMP_RESULT
+		echo -e "\n\n"
 	else 
-		echo "[$( date )] Host $1 delisted from $2 after $( displaytime $(($3 - $LISTEDTIME)) ). Listing sum is now $4." >> $TMP_RESULT
+		echo "[$( date )] Host $HOST delisted from $2 after $( displaytime $(($3 - $LISTEDTIME)) ). Listing sum is now $4." >> $TMP_RESULT
+		echo -e "\n\n"
 	fi
 	if [[ $DEBUG -gt 0 ]]; then cat $TMP_RESULT; fi
+}
+
+queryipv4 () {
+	# Queries the blacklists
+	# May use multiple DNS servers if a positive listing is returned (avoid limits)
+
+	local QUERYTMP="$(mktemp)"
+
+	LISTCOUNT=0
+	NOTLISTCOUNT=0
+	
+	INVERTEDIP="$(echo "$1" | sed 's/\(.*\)\.\(.*\)\.\(.*\)\.\(.*\)/\4.\3.\2.\1/')"
+
+	# Spread queries through all allowed servers
+	for dns in $( shuf $DNS_LIST )
+	do
+		if [[ $DEBUG -gt 0 ]]; then echo "[$( date )] Querying $bl with $dns for $1"; fi
+		dig +time=$QUERY_TIMEOUT +short @$dns $INVERTEDIP.$2 > $QUERYTMP
+		if [[ $? -eq 0 ]]
+		then
+			# if dig is succesful
+			if [[ $( cat $QUERYTMP | wc -l ) -gt 1 ]]
+			then
+				# An answer with multiple entries gets converted to csv
+				FULLRESULT="$(cat $QUERYTMP | tr '\n' ',' )"
+				RESULT="${FULLRESULT::-1}"
+			else
+				# If the query returns a single result just keep the result
+				RESULT="$(cat $QUERYTMP)"
+			fi
+			if [[ "$RESULT" != "" ]]
+			then
+				# If the blacklist answer is not an empty string (possibly a listing)
+				# Adds to the count of listings to compare with other DNS server answers
+				LISTCOUNT=$(( "$LISTCOUNT" + 1 ))
+				# Try to get a description for why it has been listed
+				querystore "$1" "$dns" "$2" "$RESULT" "$(date +%s)" "$( dig TXT +time=$QUERY_TIMEOUT +short @$dns $INVERTEDIP.$2 | sed s/\"//g )"
+				if [[ $DEBUG -gt 0 ]]; then echo "[$( date )] $RESULT"; fi
+			else
+				# If the blacklist answer is an empty string (not listed)
+				# Adds to the count of negatives to compare with other DNS server answers
+				NOTLISTCOUNT=$(( "$NOTLISTCOUNT" + 1 ))
+				querystore "$1" "$dns" "$2" "$RESULT" "$(date +%s)" ""
+				if [[ "$LISTCOUNT" -eq 0 ]]
+				then
+					# No need to query other DNS servers if the first query result was already negative
+					break
+				fi
+			fi
+		else
+			# If the dig command fails (probably a timeout from the blacklist or DNS)
+			# Store a NULL answer (undetermined)
+			querystore "$1" "$dns" "$2" "$RESULT" "$(date +%s)" "NULL"
+			if [[ $DEBUG -gt 0 ]]; then echo "[$( date )] $RESULT"; fi
+		fi
+		sleep 0.1
+	done
+
+	# Decide if result is positive or not and store it if appropriate
+	
+	# Listings sometimes happen due to "rate limiting" on the DNS server IP
+	# that is reaching the blacklist. Common whe using public DNS servers.
+
+	# Empty blacklist answers are weighthed as -1, otherwise as +1
+	# Query timeouts or undetermined are weighted as 0
+	# This way no matter how many DNSs are used, the "majority" decides
+	# if a listing may be a false positive or not.
+
+	# Won't store the result if the previous consensus was the same as the current
+	# This keeps the database size and performance under control, and makes it a lot easier
+	# to query the history
+	if [[ "$LISTCOUNT" -eq 0 && "$NOTLISTCOUNT" -eq 0 ]]
+	then
+		return
+	else
+		LASTRESULT=$(echo "SELECT result FROM results WHERE host LIKE \"$1\" AND bl LIKE \"$2\" ORDER BY time DESC LIMIT 1;" | sqlite3 -noheader -csv $SQLITE_DB)
+		LISTSUM=$(( $LISTCOUNT - $NOTLISTCOUNT ))
+		if [[ ($LISTSUM -gt 0 && ($LASTRESULT -lt 0 || -z $LASTRESULT) ) || ($LISTSUM -lt 0 && $LASTRESULT -gt 0) ]]
+		then
+			if [[ $DEBUG -gt 0 ]]; then echo "Result change: $LASTRESULT to $LISTSUM"; fi
+			resultstore "$1" "$2" "$(date +%s)" "$LISTSUM" "ipv4"
+		else
+			if [[ $DEBUG -gt 0 ]]; then echo "No change: $LASTRESULT to $LISTSUM"; fi
+			return
+		fi
+	fi
+	rm $QUERYTMP
+}
+
+
+queryipv6 () {
+	# Queries the blacklists
+	# May use multiple DNS servers if a positive listing is returned (avoid limits)
+
+	local QUERYTMP="$(mktemp)"
+
+	LISTCOUNT=0
+	NOTLISTCOUNT=0
+	
+	INVERTEDIP="$(echo "$1" | sed 's/\(.*\):\(.*\):\(.*\):\(.*\):\(.*\):\(.*\):\(.*\):\(.*\)/\8:\7:\6:\5:\4:\3:\2:\1/')"
+
+	# Spread queries through all allowed servers
+	for dns in $( shuf $DNS_LIST )
+	do
+		if [[ $DEBUG -gt 0 ]]; then echo "[$( date )] Querying $bl with $dns for $1"; fi
+		dig +time=$QUERY_TIMEOUT +short @$dns $INVERTEDIP.$2 > $QUERYTMP
+		if [[ $? -eq 0 ]]
+		then
+			# if dig is succesful
+			if [[ $( cat $QUERYTMP | wc -l ) -gt 1 ]]
+			then
+				# An answer with multiple entries gets converted to csv
+				FULLRESULT="$(cat $QUERYTMP | tr '\n' ',' )"
+				RESULT="${FULLRESULT::-1}"
+			else
+				# If the query returns a single result just keep the result
+				RESULT="$(cat $QUERYTMP)"
+			fi
+			if [[ "$RESULT" != "" ]]
+			then
+				# If the blacklist answer is not an empty string (possibly a listing)
+				# Adds to the count of listings to compare with other DNS server answers
+				LISTCOUNT=$(( "$LISTCOUNT" + 1 ))
+				# Try to get a description for why it has been listed
+				querystore "$1" "$dns" "$2" "$RESULT" "$(date +%s)" "$( dig TXT +time=$QUERY_TIMEOUT +short @$dns $INVERTEDIP.$2 | sed s/\"//g )"
+				if [[ $DEBUG -gt 0 ]]; then echo "[$( date )] $RESULT"; fi
+			else
+				# If the blacklist answer is an empty string (not listed)
+				# Adds to the count of negatives to compare with other DNS server answers
+				NOTLISTCOUNT=$(( "$NOTLISTCOUNT" + 1 ))
+				querystore "$1" "$dns" "$2" "$RESULT" "$(date +%s)" ""
+				if [[ "$LISTCOUNT" -eq 0 ]]
+				then
+					# No need to query other DNS servers if the first query result was already negative
+					break
+				fi
+			fi
+		else
+			# If the dig command fails (probably a timeout from the blacklist or DNS)
+			# Store a NULL answer (undetermined)
+			querystore "$1" "$dns" "$2" "$RESULT" "$(date +%s)" "NULL"
+			if [[ $DEBUG -gt 0 ]]; then echo "[$( date )] $RESULT"; fi
+		fi
+		sleep 0.1
+	done
+
+	# Decide if result is positive or not and store it if appropriate
+	
+	# Listings sometimes happen due to "rate limiting" on the DNS server IP
+	# that is reaching the blacklist. Common whe using public DNS servers.
+
+	# Empty blacklist answers are weighthed as -1, otherwise as +1
+	# Query timeouts or undetermined are weighted as 0
+	# This way no matter how many DNSs are used, the "majority" decides
+	# if a listing may be a false positive or not.
+
+	# Won't store the result if the previous consensus was the same as the current
+	# This keeps the database size and performance under control, and makes it a lot easier
+	# to query the history
+	if [[ "$LISTCOUNT" -eq 0 && "$NOTLISTCOUNT" -eq 0 ]]
+	then
+		return
+	else
+		LASTRESULT=$(echo "SELECT result FROM results WHERE host LIKE \"$1\" AND bl LIKE \"$2\" ORDER BY time DESC LIMIT 1;" | sqlite3 -noheader -csv $SQLITE_DB)
+		LISTSUM=$(( $LISTCOUNT - $NOTLISTCOUNT ))
+		if [[ ($LISTSUM -gt 0 && ($LASTRESULT -lt 0 || -z $LASTRESULT) ) || ($LISTSUM -lt 0 && $LASTRESULT -gt 0) ]]
+		then
+			if [[ $DEBUG -gt 0 ]]; then echo "Result change: $LASTRESULT to $LISTSUM"; fi
+			resultstore "$1" "$2" "$(date +%s)" "$LISTSUM" "ipv6"
+		else
+			if [[ $DEBUG -gt 0 ]]; then echo "No change: $LASTRESULT to $LISTSUM"; fi
+			return
+		fi
+	fi
+	rm $QUERYTMP
 }
 
 querydns () {
@@ -245,6 +432,12 @@ querydns () {
 	rm $QUERYTMP
 }
 
+filterlist () {
+	TYPE="$1"
+	LIST="$2"
+
+	cat "$2" | grep -e "^$1," | sed "s/^$1,//"
+}
 
 main () {
 	# Create default path for data
@@ -276,9 +469,28 @@ EOF
 	fi
 
 	# Every host should be queried on every blacklist
-	for bl in $( shuf $BL_LIST )
+
+	for bl in $( filterlist ipv4 $BL_LIST | shuf )
 	do
-		for dnshost in $( shuf $HOST_LIST )
+		for ipv4address in $( filterlist ipv4 $HOST_LIST | shuf )
+		do
+			queryipv4 "$ipv4address" "$bl"
+			wait
+		done
+	done
+
+	for bl in $( filterlist ipv6 $BL_LIST | shuf )
+	do
+		for ipv6address in $( filterlist ipv6 $HOST_LIST | shuf )
+		do
+			queryipv6 "$ipv6address" "$bl"
+			wait
+		done
+	done
+
+	for bl in $( filterlist dns $BL_LIST | shuf )
+	do
+		for dnshost in $( filterlist dns $HOST_LIST | shuf )
 		do
 			querydns "$dnshost" "$bl"
 			wait
