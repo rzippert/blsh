@@ -10,12 +10,12 @@
 #
 #You can contact the author by email at automail_blsh 'AT' zppr.tk.
 
-BASICPATH=~/".local/dnsbl"
+BASICPATH=~/".local/blsh"
 
 QUERY_TIMEOUT=10
 TMP_RESULT="$(mktemp)"
 TMP_REPORT="$(mktemp)"
-SQLITE_DB="$BASICPATH/dnsbl.sqlite"
+SQLITE_DB="$BASICPATH/blsh.sqlite"
 DNS_LIST="$BASICPATH/lists/dns"
 REPORTHISTORYSIZE="2"
 if [[ -f "$DNS_LIST" ]]
