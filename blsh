@@ -24,6 +24,7 @@ then
 fi
 BL_LIST="$BASICPATH/lists/bl"
 HOST_LIST="$BASICPATH/lists/host"
+TELEGRAMLIST="$BASICPATH/lists/telegram"
 UNSENTREPORTS="$BASICPATH/unsentreports"
 SENDLIMIT="240"
 FULLLOGTIME=$(( "$( date +%s)" - 5184000 )) # full query log for 60 days
@@ -31,7 +32,7 @@ NOLOGTIME=$(( "$( date +%s)" - 315360000 )) # positive listings log for 10 years
 DEBUG=0
 
 function usage {
-      echo "Usage: $0 [-hd] [-q QUERYTIMEOUT] [-D DBPATH] [-s SERVERLISTPATH] [-b BLACKLISTPATH] [-H HOSTSPATH] [-r REPORTRETRY] [-l FULLLOGTIME] [-L NOLOGTIME]
+      echo "Usage: $0 [-hd] [-q QUERYTIMEOUT] [-D DBPATH] [-s SERVERLISTPATH] [-b BLACKLISTPATH] [-H HOSTSPATH] [-t TELEGRAMPATH] [-r REPORTRETRY] [-l FULLLOGTIME] [-L NOLOGTIME]
 	-h			Print this usage text and exits.
 	-d			Debug messages printed to console (default FALSE).
 	-q QUERYTIMEOUT		Seconds until a query times out (default 10).
@@ -39,6 +40,7 @@ function usage {
 	-s SERVERLISTPATH	Path to the DNS servers list.
 	-b BLACKLISTPATH	Path to the Blacklist servers list.
 	-H HOSTSPATH		Path to the list of hosts that should be queried on blacklists.
+	-t TELEGRAMPATH		Path to the list of bots and chats to notify.
 	-r REPORTRETRY		Minutes to keep retrying to send the reports (once per minute) (default 240).
 	-l FULLLOGTIME		Keep full query log for this number of days (previous entries are erased) (default 60 days).
 	-L NOLOGTIME		Keep logs for this number of days (previoues entries are erased) (default 10 years)."
@@ -105,6 +107,25 @@ cleanup () {
 	echo "VACUUM;" | sqlite3 $SQLITE_DB
 }
 
+telegramsend () {
+	MESSAGE="$1"
+	if [[ -f "$TELEGRAMLIST" ]]
+	then
+		for CHANNEL in $(cat $TELEGRAMLIST)
+		do
+			TOKEN=$( echo $CHANNEL | sed 's/,.*$//' )
+			CHATID=$( echo $CHANNEL | sed 's/^.*,//' )
+			curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" -d chat_id="$CHATID" -d text="$MESSAGE"
+			if [[ "$?" -ne 0 ]]
+			then
+				return 1
+			fi
+			sleep 1
+		done
+	fi
+	return 0
+}
+
 sqlitereport () {
 	# Sends a report via Telegram if there's a change in stored results
 	if [[ -s $TMP_RESULT ]]
@@ -116,7 +137,7 @@ sqlitereport () {
 		local SENDCOUNT=0
 		while true
 		do
-			telegram-send "$( cat $TMP_REPORT )"
+			telegramsend "$( cat $TMP_REPORT )"
 			if [[ "$?" -eq 0 ]]
 			then
 				# If able to send, stops trying
