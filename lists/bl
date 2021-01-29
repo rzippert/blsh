@@ -66,6 +66,7 @@ ipv4,rsbl.aupads.org
 ipv4,block.ascams.com
 ipv4,superblock.ascams.com
 ipv4,aspews.ext.sorbs.net
+ipv4,rbl.megarbl.net
 ipv4,ips.backscatterer.org
 ipv4,b.barracudacentral.org
 ipv4,bb.barracudacentral.org
@@ -172,7 +173,6 @@ ipv4,wl.mailspike.net
 ipv4,z.mailspike.net
 ipv4,bl.mav.com.br
 ipv4,cidr.bl.mcafee.com
-ipv4,rbl.megarbl.net
 ipv4,dnsbl.forefront.microsoft.com
 ipv4,bl.mipspace.com
 ipv4,combined.rbl.msrbl.net
@@ -188,7 +188,6 @@ ipv4,ix.dnsbl.manitu.net
 ipv4,no-more-funn.moensted.dk
 ipv4,wl.nszones.com
 ipv4,sbl.nszones.com
-ipv4,dnsbl.openresolvers.org
 ipv4,blacklist.mail.ops.asp.att.net
 ipv4,blacklist.sequoia.ops.asp.att.net
 ipv4,spam.pedantic.org
@@ -249,7 +248,6 @@ ipv4,bl.spameatingmonkey.net
 ipv4,netbl.spameatingmonkey.net
 ipv4,netblockbl.spamgrouper.to
 ipv4,all.spam-rbl.fr
-ipv4,bl.spamcannibal.org
 ipv4,bl.spamcop.net
 ipv4,pbl.spamhaus.org
 ipv4,sbl.spamhaus.org
