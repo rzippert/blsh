@@ -11,25 +11,27 @@ DNSBL follows an RFC, which you should consult for more information.
 
 ## requirements
 
-''sqlite3'', ''curl'' and ''dig''. There's no package right now, so you should install these yourself on your distribution. If you're trying this on Windows, I think you shouldn't, but please let me know about it =)
+`sqlite3, curl` and `dig`. There's no package right now, so you should install these yourself on your distribution. If you're trying this on Windows, I think you shouldn't, but please let me know about it =)
 
 ## instructions
 
-There is still no installation package for this, so just place ''blsh'' on ''/usr/local/bin'' and setup your data folder. You can edit the (default) paths inside the script and via arguments, but it is assumed the following:
+There is still no installation package for this, so just place `blsh` on `/usr/local/bin` and setup your data folder. You can edit the (default) paths inside the script and via arguments, but it is assumed the following:
 
-Base path: ''~/.local/blsh''
-Database: ''~/.local/blsh/blsh.sqlite''
-Blacklists list: ''~/.local/blsh/lists/bl''
-Hosts list: ''~/.local/blsh/lists/host''
-Telegram creds (optional): ''~/.local/blsh/lists/telegram''
-DNS list: ''~/.local/blsh/lists/dns''
-Unsent reports: ''~/.local/blsh/unsentreports''
+```
+Base path: ~/.local/blsh
+Database: ~/.local/blsh/blsh.sqlite
+Blacklists list: ~/.local/blsh/lists/bl
+Hosts list: ~/.local/blsh/lists/host
+Telegram creds (optional): ~/.local/blsh/lists/telegram
+DNS list: ~/.local/blsh/lists/dns
+Unsent reports: ~/.local/blsh/unsentreports
+```
 
 Blacklists and hosts can be of 3 types: ipv4, ipv6 and domain.
-The the bl and host files should follow the ''type,entry'' format, one per line. In case of doubt check the list examples.
-The telegram creds should follow the ''bot-token,channel'' format. If you don't know what this means, please check how to create a bot on Telegram. This way you can notify multiple channels, each with a different bot if required.
+The the bl and host files should follow the `type,entry` format, one per line. In case of doubt check the list examples.
+The telegram creds should follow the `bot-token,channel` format. If you don't know what this means, please check how to create a bot on Telegram. This way you can notify multiple channels, each with a different bot if required.
 
-Example lists can be found under ''lists'' in this repository.
+Example lists can be found under `lists` in this repository.
 
 ## notes
 
