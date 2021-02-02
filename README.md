@@ -1,6 +1,6 @@
 # blsh
 
-blsh is a mostly bash script that queries blackslists through the dnsbl mechanism to find out if a given IP or domain is listed. As depending on the number of queries can be considerate, there is a reporting mechanism that may output the resulting summary to telegram (feature added for my own convenience).
+blsh is a mostly bash script that queries blackslists through the dnsbl mechanism to find out if a given IP or domain is listed. As the number of queries is multiplied by the number of addresses and blacklists, there is a reporting mechanism that may output the resulting summary to telegram (feature added for my own convenience).
 Query data is stored with sqlite so that you can analyze behaviors related to the listings.
 
 DNSBL is often used by mail servers to decide whether to accept, reject or mark incoming messages as spam in "real time". Sometimes your IP or domain may be listed on them which will give you trouble to deliver your mail on the internet, so checking them proactively looks like good practice, hence this script was born.
