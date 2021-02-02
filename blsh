@@ -1,6 +1,6 @@
 #!/bin/bash
 #blsh is a script that tries to monitor domains for blacklisting through DNSBL RFC
-#Copyright (C) 2021 Renato Rodrigues Zippert
+#Copyright (C) 2021 Renato Zippert
 #
 #This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 #
