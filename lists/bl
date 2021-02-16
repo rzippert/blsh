@@ -279,10 +279,6 @@ ipv4,r.mail-abuse.com
 ipv4,q.mail-abuse.com
 ipv4,wbl.triumf.ca
 ipv4,truncate.gbudb.net
-ipv4,dnsbl-0.uceprotect.net
-ipv4,dnsbl-1.uceprotect.net
-ipv4,dnsbl-2.uceprotect.net
-ipv4,dnsbl-3.uceprotect.net
 ipv4,ubl.unsubscore.com
 ipv4,free.v4bl.org
 ipv4,ip.v4bl.org
