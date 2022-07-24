@@ -45,7 +45,7 @@ The displaytime function, that "converts" a number of seconds to something more 
 
 ## licence
 
-Copyright (C) 2021 Renato Zippert
+Copyright (C) 2022 Renato Zippert
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
